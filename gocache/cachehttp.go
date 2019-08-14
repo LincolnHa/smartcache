@@ -10,6 +10,6 @@ type nodeHttp struct {
 }
 
 //NodeHash 将各个节点hash
-func (nHttp nodeHttp) NodeHash() {
+func (nHttp nodeHttp) Hash() {
 	nHttp.consiHash.StartHash(nHttp.nodeAddrs)
 }

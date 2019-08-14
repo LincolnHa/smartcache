@@ -6,21 +6,18 @@ import (
 )
 
 type GoCache struct {
-	commNodes  nodeHttp  //管理跟其他GoCache的通信
+	cacheNodes nodeHttp  //管理跟其他GoCache的通信
 	innerCache lru.Cache //缓存对象（用Lru管理）
 }
 
-//NewCache 初始化GoCache
-func NewCache(nodeaddrs []string) GoCache {
+//New 初始化GoCache
+func New(nodeaddrs []string) GoCache {
 	smartCache := GoCache{
-		commNodes: nodeHttp{nodeAddrs: nodeaddrs},
+		cacheNodes: nodeHttp{nodeAddrs: nodeaddrs},
 	}
 
 	//将各个cache 节点 hash分布
-	smartCache.commNodes.NodeHash()
-
-	//缓存对象开始用lru算法监控剔除最近最少使用的缓存对象
-	smartCache.innerCache.Start()
+	smartCache.cacheNodes.Hash()
 
 	return smartCache
 }
