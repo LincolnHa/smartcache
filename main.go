@@ -15,8 +15,8 @@ func main() {
 	}
 
 	//将cache 节点 通过一致性hash，分散缓存key_value
-	smartCache := gocache.New(nodeaddrs)
+	smartCache := gocache.New(nodeaddrs, "goChache")
 
 	//启动节点，监听
-	http.ListenAndServe(":8001", smartCache)
+	http.ListenAndServe("http://192.168.1.105:8001", smartCache)
 }
