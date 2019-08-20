@@ -1,72 +1,163 @@
 package gocache
 
 import (
+	"encoding/json"
 	"fmt"
+	"lincoln/smartcache/cachebyte"
 	"lincoln/smartcache/lru"
 	"net/http"
 	"strings"
+	"time"
 )
 
+//GoCache 缓存对象
 type GoCache struct {
 	baseName   string    //Http请求时的链接信息
 	cacheNodes nodeHttp  //管理跟其他GoCache的通信
 	innerCache lru.Cache //缓存对象（用Lru管理）
 }
 
-//New 初始化GoCache
-func New(nodeaddrs []string, localAddr string, baseNameInURL string) GoCache {
+type BridgeData_Get struct {
+	Key    string
+	Method string
+	Value  cachebyte.CacheByte
+}
+
+type BridgeData_Set struct {
+	Value  cachebyte.CacheByte
+	Expire time.Duration
+}
+
+//New 初始化GoCache(把节点Addr hash分布)
+func New(nodeaddrs []string, localAddr string, baseNameInURL string) *GoCache {
 	smartCache := GoCache{
 		baseName:   baseNameInURL,
 		cacheNodes: nodeHttp{nodeAddrs: nodeaddrs, selfAddr: localAddr},
 	}
 
-	//将各个cache 节点 hash分布
-	smartCache.cacheNodes.Hash()
+	//初始化innerCache
+	smartCache.innerCache.New()
 
-	return smartCache
+	//将各个cache 节点 hash分布
+	smartCache.cacheNodes.HashAddr()
+
+	return &smartCache
 }
 
 //ServeHTTP 实现http的接口
-func (cache GoCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.URL.Path, cache.baseName) {
+func (cache *GoCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	//获取请求参数
+	splits := strings.SplitN(r.URL.Path, "/", 4)
+	if len(splits) != 4 {
 		http.NotFound(w, r)
 		return
 	}
 
-	splits := strings.SplitN(r.URL.Path, "/", 2)
-	if len(splits) != 2 {
-		http.Error(w, "error url", http.StatusForbidden)
+	baseName := splits[1]
+	method := splits[2]
+	key := splits[3]
+
+	//请求错误
+	if baseName != baseName {
+		http.NotFound(w, r)
 		return
 	}
 
-	//获取请求的key
-	key := splits[1]
+	if method == "Get" {
+		fmt.Println("Get")
+		//获取key对应的value
+		value, ok := cache.GetValue(key)
+		if !ok {
+			http.Error(w, "(1)error url", http.StatusNotFound)
+			return
+		}
 
-	//获取key对应的value
-	value, ok := cache.GetValue(key)
-	if !ok {
-		http.Error(w, "error url", http.StatusNotFound)
+		data := BridgeData_Get{
+			Key:    key,
+			Method: method,
+			Value:  *value,
+		}
+
+		resData, err := json.Marshal(data)
+		if err != nil {
+			http.Error(w, "(2)error url", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(resData)
 		return
 	}
 
-	//返回
-	response := fmt.Sprintf("{\"key\":%s,\"value\":%s}", key, value)
+	if method == "Set" {
+		fmt.Println("Set")
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(response))
+		//post 数据
+		reqbody := BridgeData_Set{}
+		err := json.NewDecoder(r.Body).Decode(&reqbody)
+		if err != nil {
+			http.Error(w, "error url", http.StatusNotFound)
+			return
+		}
+
+		retCode := 0
+		if ok := cache.SetValue(key, reqbody); ok {
+			retCode = 1
+		}
+
+		//返回
+		response := fmt.Sprintf("{\"Key\":\"%s\",\"Method\":\"%s\",\"RetCode\":%d,\"Msg\":\"%s\"}", key, method, retCode, "ok")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(response))
+		return
+	}
+
 }
 
 //GetValue 根据key获取value(可能在本地或从其他节点获取)
-func (cache GoCache) GetValue(key string) (string, bool) {
+func (cache *GoCache) GetValue(key string) (*cachebyte.CacheByte, bool) {
+	var obj *cachebyte.CacheByte
+	var ok bool
+
+	//获取节点通信地址(ip:port)
+	addr, isLocal := cache.cacheNodes.GetAddr(key)
+
+	if isLocal {
+		fmt.Println("Get: In this node")
+
+		//Key在当前节点
+		obj, ok = cache.innerCache.Get(key)
+	} else {
+		//Key在其他节点，通过http获取
+		url := addr + "/" + cache.baseName + "/Get" + "/" + key
+		obj, ok = cache.cacheNodes.Get(url)
+	}
+
+	//有值
+	if ok && obj != nil {
+		return obj, true
+	}
+
+	return nil, false
+}
+
+//SetValue 缓存Value
+func (cache *GoCache) SetValue(key string, data BridgeData_Set) bool {
+	var ok bool
+
 	//获取节点通信地址
 	addr, isLocal := cache.cacheNodes.GetAddr(key)
 
-	//Key在当前节点
 	if isLocal {
-
-		return addr, true
+		//Key在当前节点
+		fmt.Println("Set: In this node")
+		ok = cache.innerCache.Set(key, data.Value, data.Expire)
+	} else {
+		//Key在其他节点，直接通过http获取
+		url := addr + "/" + cache.baseName + "/Set" + "/" + key
+		ok = cache.cacheNodes.Set(url, key, data.Value, data.Expire)
 	}
 
-	//Key在其他节点，通过http获取
-	return addr, true
+	return ok
 }

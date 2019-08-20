@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"lincoln/smartcache/gocache"
 	"net/http"
 )
@@ -9,14 +10,17 @@ func main() {
 
 	//各个cache 节点
 	nodeaddrs := []string{
-		"http://192.168.1.105:8001",
-		"http://192.168.1.105:8002",
-		"http://192.168.1.105:8003",
+		"http://192.168.1.102:8001",
+		"http://192.168.1.102:8002",
 	}
 
 	//将cache 节点 通过一致性hash，分散缓存key_value
-	smartCache := gocache.New(nodeaddrs, "goChache")
+	thisNode := "http://192.168.1.102:8002"
+	smartCache := gocache.New(nodeaddrs, thisNode, "goChache")
 
 	//启动节点，监听
-	http.ListenAndServe("http://192.168.1.105:8001", smartCache)
+	err := http.ListenAndServe(":8002", smartCache)
+	if err != nil {
+		fmt.Printf("%s", err.Error())
+	}
 }
