@@ -61,6 +61,8 @@ func TestSetValue(t *testing.T) {
 		return
 	}
 
+	t.Logf("body:%s", resbody)
+
 	return
 }
 

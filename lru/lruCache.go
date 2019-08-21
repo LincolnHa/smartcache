@@ -61,7 +61,7 @@ func (cache *Cache) Set(key string, val cachebyte.CacheByte, expires time.Durati
 	if ok {
 		//已存在， 移到最前面
 		cache.list.MoveToFront(ele)
-		return false
+		return true
 	}
 
 	thisSize := len(val.Raws)
