@@ -24,7 +24,7 @@ type innerEle struct {
 
 func (cache *Cache) New() {
 	cache.data = make(map[string]*list.Element)
-	cache.maxSize = 20 //4 << 30 //默认缓存4g大小
+	cache.maxSize = 4 << 30 //默认缓存4g大小
 }
 
 //Get 获取缓存对象
@@ -56,17 +56,26 @@ func (cache *Cache) Set(key string, val cachebyte.CacheByte, expires time.Durati
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
+	//查看key是否已存在
+	ele, ok := cache.data[key]
+	if ok {
+		//已存在， 移到最前面
+		cache.list.MoveToFront(ele)
+		return false
+	}
+
 	thisSize := len(val.Raws)
 
 	//先检查是否已达到最大内存限制了
 	if thisSize+cache.currSize >= cache.maxSize {
 		cache.RemoveOldest()
+		cache.currSize = cache.currSize - thisSize
 	}
 
 	//将key加到链表头部
 	cache.currSize = cache.currSize + thisSize
 
-	ele := cache.list.PushFront(innerEle{
+	ele = cache.list.PushFront(innerEle{
 		key:   key,
 		value: val,
 	})

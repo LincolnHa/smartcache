@@ -44,7 +44,7 @@ func New(nodeaddrs []string, localAddr string, baseNameInURL string) *GoCache {
 	return &smartCache
 }
 
-//ServeHTTP 实现http的接口
+//ServeHTTP 处理其他节点请求过来的数据
 func (cache *GoCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//获取请求参数
 	splits := strings.SplitN(r.URL.Path, "/", 4)
@@ -58,17 +58,16 @@ func (cache *GoCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	key := splits[3]
 
 	//请求错误
-	if baseName != baseName {
+	if baseName != cache.baseName {
 		http.NotFound(w, r)
 		return
 	}
 
+	//要获取key对应的value
 	if method == "Get" {
-		fmt.Println("Get")
-		//获取key对应的value
 		value, ok := cache.GetValue(key)
 		if !ok {
-			http.Error(w, "(1)error url", http.StatusNotFound)
+			http.NotFound(w, r)
 			return
 		}
 
@@ -84,14 +83,14 @@ func (cache *GoCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		//响应结构为 BridgeData_Get的数据
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(resData)
 		return
 	}
 
+	//存储key
 	if method == "Set" {
-		fmt.Println("Set")
-
 		//post 数据
 		reqbody := BridgeData_Set{}
 		err := json.NewDecoder(r.Body).Decode(&reqbody)
@@ -105,7 +104,7 @@ func (cache *GoCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			retCode = 1
 		}
 
-		//返回
+		//返回结果
 		response := fmt.Sprintf("{\"Key\":\"%s\",\"Method\":\"%s\",\"RetCode\":%d,\"Msg\":\"%s\"}", key, method, retCode, "ok")
 
 		w.Header().Set("Content-Type", "application/json")
@@ -124,8 +123,6 @@ func (cache *GoCache) GetValue(key string) (*cachebyte.CacheByte, bool) {
 	addr, isLocal := cache.cacheNodes.GetAddr(key)
 
 	if isLocal {
-		fmt.Println("Get: In this node")
-
 		//Key在当前节点
 		obj, ok = cache.innerCache.Get(key)
 	} else {
@@ -151,7 +148,6 @@ func (cache *GoCache) SetValue(key string, data BridgeData_Set) bool {
 
 	if isLocal {
 		//Key在当前节点
-		fmt.Println("Set: In this node")
 		ok = cache.innerCache.Set(key, data.Value, data.Expire)
 	} else {
 		//Key在其他节点，直接通过http获取

@@ -3,10 +3,10 @@ package gocache_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"lincoln/smartcache/cachebyte"
 	"lincoln/smartcache/gocache"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"testing"
@@ -26,7 +26,7 @@ func TestSetValue(t *testing.T) {
 	//http请求
 	data, err := json.Marshal(reqbody)
 	if err != nil {
-		fmt.Printf("(1)nodeHttp Set Err:%s", err.Error())
+		t.Logf("(1)nodeHttp Set Err:%s", err.Error())
 		return
 	}
 
@@ -35,7 +35,7 @@ func TestSetValue(t *testing.T) {
 
 	res, err := http.Post(sendUrl, "application/json;charset=utf-8", reqBodyBuffer)
 	if err != nil {
-		fmt.Printf("Err:%s", err.Error())
+		t.Logf("Err:%s", err.Error())
 		return
 	}
 
@@ -52,7 +52,7 @@ func TestSetValue(t *testing.T) {
 
 	err = json.Unmarshal([]byte(resbody), &result)
 	if err != nil {
-		fmt.Printf("(2)nodeHttp Set Err:%s", err.Error())
+		t.Logf("(2)nodeHttp Set Err:%s", err.Error())
 		return
 	}
 
@@ -92,9 +92,9 @@ func TestGetValue(t *testing.T) {
 	t.Logf("Get Success, value:%s", string(result.Value.Raws))
 }
 
-func BenchmarkSetValue(b *testing.B) {
+func BenchmarkPostValue(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		fmt.Printf("curr: %d" , i)
+
 		//post 数据
 		reqbody := gocache.BridgeData_Set{
 			Value: cachebyte.CacheByte{
@@ -106,16 +106,16 @@ func BenchmarkSetValue(b *testing.B) {
 		//http请求
 		data, err := json.Marshal(reqbody)
 		if err != nil {
-			fmt.Printf("(1)nodeHttp Set Err:%s", err.Error())
+			b.Logf("(1)nodeHttp Set Err:%s", err.Error())
 			return
 		}
 
 		reqBodyBuffer := bytes.NewBuffer(data)
-		sendUrl := "http://192.168.1.102:8002/goChache/Set/hello" + strconv.Itoa(i)
+		sendUrl := "http://192.168.1.102:8002/goChache/Set/hello" + strconv.Itoa(rand.Int())
 
 		res, err := http.Post(sendUrl, "application/json;charset=utf-8", reqBodyBuffer)
 		if err != nil {
-			fmt.Printf("Err:%s", err.Error())
+			b.Logf("Err:%s", err.Error())
 			return
 		}
 
@@ -132,7 +132,7 @@ func BenchmarkSetValue(b *testing.B) {
 
 		err = json.Unmarshal([]byte(resbody), &result)
 		if err != nil {
-			fmt.Printf("(2)nodeHttp Set Err:%s", err.Error())
+			b.Logf("(2)nodeHttp Set Err:%s", err.Error())
 			return
 		}
 
