@@ -8,7 +8,7 @@ import (
 
 func main() {
 
-	//各个cache 节点
+	//各个cache 节点1
 	nodeaddrs := []string{
 		"http://192.168.1.102:8001",
 		"http://192.168.1.102:8002",
